@@ -16,8 +16,8 @@ public class EnemyData : ScriptableObject
     public string Name => _name;
     private int Health => _health;
     private int Armor => _armor;
-    private int Speed => _speed;
-    private int AttackRange => _attackRange;
+    private float Speed => _speed;
+    private float AttackRange => _attackRange;
     private float AttackDelay => _attackDelay;
     private float AttackTime => _attackTime;
 }

@@ -1,3 +1,4 @@
+using System;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -9,6 +10,7 @@ public class CharacterController : MonoBehaviour
 {
     [Header("Movement")]
     [SerializeField] private float _moveSpeed = 2f;
+    [SerializeField] private float _attackDelay = 0.25f;
 
     [Header("Jump")]
     [SerializeField] private float _jumpForce = 5f;
@@ -26,11 +28,16 @@ public class CharacterController : MonoBehaviour
     private PlayerInput _playerInput;
     private InputAction _moveAction;
     private InputAction _jumpAction;
+    private InputAction _attacAction;
+    private PlayerCombatSystem _playerCombatSystem;
 
     private Vector2 _moveInput = Vector2.zero;
     private bool _isGrounded = false;
+    private bool _canMove = true;
     private float _lastGroundedTime = -10f;
     private float _lastJumpPressedTime = -10f;
+    private float _lastAttackTime = -10f;
+    private bool _hasAttacked = false;
 
     private bool _IsFacingRight = true;
 
@@ -40,22 +47,16 @@ public class CharacterController : MonoBehaviour
         _playerInput = GetComponent<PlayerInput>();
         _animator = GetComponent<Animator>();
         _spriteRenderer = GetComponent<SpriteRenderer>();
+        _playerCombatSystem = GetComponent<PlayerCombatSystem>();
     }
 
     private void Awake()
     {
         _rb = _rb ? _rb : GetComponent<Rigidbody2D>();
-        /*if (_rb)
-        {
-            _rb = _rb;
-        }
-        else
-        {
-            _rb = GetComponent<Rigidbody2D>();
-        }*/
         _playerInput = _playerInput ? _playerInput : GetComponent<PlayerInput>();
         _animator = _animator ? _animator : GetComponent<Animator>();
         _spriteRenderer = _spriteRenderer ? _spriteRenderer : GetComponent<SpriteRenderer>();
+        _playerCombatSystem = _playerCombatSystem ? _playerCombatSystem : GetComponent<PlayerCombatSystem>();
 
         if (_playerInput == null)
         {
@@ -69,6 +70,7 @@ public class CharacterController : MonoBehaviour
         {
             _moveAction = _playerInput.actions["Move"];
             _jumpAction = _playerInput.actions["Jump"];
+            _attacAction = _playerInput.actions["Attack"];
 
             if (_moveAction != null)
             {
@@ -81,7 +83,15 @@ public class CharacterController : MonoBehaviour
                 _jumpAction.performed += OnJumpPerfomed;
             }
         }
+            
+            if ( _attacAction != null)
+            {
+                _attacAction.Enable();
+            _attacAction.performed += OnAttackPerfomed;
+            }
     }
+
+    
 
     private void OnDisable()
     {
@@ -94,6 +104,12 @@ public class CharacterController : MonoBehaviour
         {
             _jumpAction.Disable();
             _jumpAction.performed -= OnJumpPerfomed;
+        }
+
+        if (_attacAction!= null)
+        {
+            _attacAction.Disable();
+            _attacAction.performed -= OnAttackPerfomed;
         }
     }
 
@@ -129,13 +145,23 @@ public class CharacterController : MonoBehaviour
                 _lastGroundedTime = Time.time;
             }
         }
+
+        if (_hasAttacked && Time.time - _lastAttackTime > _attackDelay) 
+        {
+            _playerCombatSystem.DeactivateSworde();
+            _hasAttacked = false;
+            _canMove = true;
+        }
     }
 
     private void FixedUpdate()
     {
+        if (_canMove) return;
+        
         Vector2 linearVelocity = _rb.linearVelocity;
         linearVelocity.x = _moveInput.x * _moveSpeed;
         _rb.linearVelocity = linearVelocity;
+        
 
         bool canUseCoyote = (Time.time - _lastGroundedTime) <= _coyoteTime;
         bool hasBufferedJump = (Time.time - _lastGroundedTime) <= _jumpBufferTime;
@@ -153,7 +179,20 @@ public class CharacterController : MonoBehaviour
     }
     private void DoJump() 
     {
-        _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, 0f);
+        _rb.linearVelocity = new Vector2(_rb.linearVelocityX, 0f);
         _rb.AddForce(Vector2.up * _jumpForce, ForceMode2D.Impulse);
+
+        
+    }
+    private void OnAttackPerfomed(InputAction.CallbackContext context)
+    {
+        if (_isGrounded && !_hasAttacked) 
+        {
+            _playerCombatSystem.ActivateSworde();
+            _hasAttacked = true;
+            _lastAttackTime = Time.time;
+            _animator.SetTrigger("AttackTrigger");
+            _rb.linearVelocity = new Vector2(0, _rb.linearVelocity.y);
+        }
     }
 }
